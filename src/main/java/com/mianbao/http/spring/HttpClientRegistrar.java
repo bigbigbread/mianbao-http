@@ -2,10 +2,11 @@ package com.mianbao.http.spring;
 
 import com.mianbao.http.annotation.EnableHttpClient;
 import com.mianbao.http.annotation.HttpClient;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
@@ -18,14 +19,15 @@ import org.springframework.core.type.filter.AnnotationTypeFilter;
 
 import java.util.*;
 
-@Slf4j
-@RequiredArgsConstructor
 public class HttpClientRegistrar implements ImportBeanDefinitionRegistrar, EnvironmentAware {
-    private final HttpClientProperties httpClientProperties;
+    
+    private static final Logger log = LoggerFactory.getLogger(HttpClientRegistrar.class);
+    
     private Environment environment;
     
     @Override
     public void registerBeanDefinitions(AnnotationMetadata metadata, @NotNull BeanDefinitionRegistry registry) {
+        log.info("HttpClientRegistrar 已成功调用");
         // 扫描 @HttpClient 注解标记的接口
         ClassPathScanningCandidateComponentProvider provider = new ClassPathScanningCandidateComponentProvider(false) {
             @Override
@@ -39,12 +41,15 @@ public class HttpClientRegistrar implements ImportBeanDefinitionRegistrar, Envir
         Map<String, Object> enableHttpClientAttributes = metadata.getAnnotationAttributes(EnableHttpClient.class.getName());
         assert enableHttpClientAttributes != null; // 如果此类被加载, 那说明 @EnableHttpClient 注解肯定被用户使用了
         String[] basePackageArray = (String[]) enableHttpClientAttributes.get("basePackages");
-        // 拿外部配置中配置的包
-        List<String> basePackageList = httpClientProperties.getBasePackages();
         
         // 对 basePackages 去重
         Set<String> basePackages = new HashSet<>(Arrays.asList(basePackageArray));
-        basePackages.addAll(basePackageList);
+        HttpClientProperties httpClientProperties = environment.getProperty("mianbao.http", HttpClientProperties.class); // 外部配置
+        // bug httpClientProperties为null
+        if (httpClientProperties != null) {
+            List<String> basePackagesList = httpClientProperties.getBasePackages();
+            basePackages.addAll(basePackagesList);
+        }
         
         // 扫描包, 并注册 BeanDefinition
         try {
