@@ -6,7 +6,6 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
@@ -40,15 +39,19 @@ public class HttpClientRegistrar implements ImportBeanDefinitionRegistrar, Envir
         // 拿 @EnableHttpClient 注解配置的包
         Map<String, Object> enableHttpClientAttributes = metadata.getAnnotationAttributes(EnableHttpClient.class.getName());
         assert enableHttpClientAttributes != null; // 如果此类被加载, 那说明 @EnableHttpClient 注解肯定被用户使用了
-        String[] basePackageArray = (String[]) enableHttpClientAttributes.get("basePackages");
+        String[] basePackageArray1 = (String[]) enableHttpClientAttributes.get("basePackages");
         
         // 对 basePackages 去重
-        Set<String> basePackages = new HashSet<>(Arrays.asList(basePackageArray));
-        HttpClientProperties httpClientProperties = environment.getProperty("mianbao.http", HttpClientProperties.class); // 外部配置
-        // bug httpClientProperties为null
-        if (httpClientProperties != null) {
-            List<String> basePackagesList = httpClientProperties.getBasePackages();
-            basePackages.addAll(basePackagesList);
+        Set<String> basePackages = new HashSet<>(Arrays.asList(basePackageArray1));
+        String basePackageArray2Str = environment.getProperty("mianbao.http.base-packages"); // 外部配置
+        if (basePackageArray2Str != null && !basePackageArray2Str.isBlank()) {
+            // 处理空格
+            basePackageArray2Str = basePackageArray2Str.replaceAll(" +", "");
+            
+            // 分隔
+            String[] basePackageArray2 = basePackageArray2Str.split(",");
+            
+            basePackages.addAll(Arrays.asList(basePackageArray2));
         }
         
         // 扫描包, 并注册 BeanDefinition
