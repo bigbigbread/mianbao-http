@@ -4,15 +4,10 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.util.concurrent.TimeUnit;
 
-@Target({ElementType.TYPE})
+@Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface HttpClient {
+public @interface PathVariable {
     
-    String baseUrl();
-    
-    TimeUnit callTimeoutUnit() default TimeUnit.SECONDS;
-    
-    int callTimeout() default 30;
+    String value();
 }

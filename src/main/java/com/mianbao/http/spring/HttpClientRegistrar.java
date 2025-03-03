@@ -26,7 +26,7 @@ public class HttpClientRegistrar implements ImportBeanDefinitionRegistrar, Envir
     
     @Override
     public void registerBeanDefinitions(AnnotationMetadata metadata, @NotNull BeanDefinitionRegistry registry) {
-        log.info("HttpClientRegistrar 已成功调用");
+        log.info("开始注册HTTP客户端...");
         // 扫描 @HttpClient 注解标记的接口
         ClassPathScanningCandidateComponentProvider provider = new ClassPathScanningCandidateComponentProvider(false) {
             @Override
@@ -56,28 +56,28 @@ public class HttpClientRegistrar implements ImportBeanDefinitionRegistrar, Envir
         
         // 扫描包, 并注册 BeanDefinition
         try {
+            int count = 0;
             for (String basePackage : basePackages) {
-                for (BeanDefinition httpClientBeanDefinition : provider.findCandidateComponents(basePackage)) {
+                Set<BeanDefinition> httpClientCandidateComponents = provider.findCandidateComponents(basePackage);
+                for (BeanDefinition httpClientBeanDefinition : httpClientCandidateComponents) {
                     // 取接口 Class<?>
                     String httpClientClassName = httpClientBeanDefinition.getBeanClassName();
                     Class<?> httpClientClass = Class.forName(httpClientClassName);
                     
-                    // 取 baseUrl
-                    HttpClient httpClientAnno = httpClientClass.getAnnotation(HttpClient.class);
-                    String pureBaseUrl = httpClientAnno.baseUrl();
-                    String baseUrl = environment.getProperty(pureBaseUrl, pureBaseUrl);
-                    
                     // 构建 HttpClientFactoryBean 的 BeanDefinition
-                    BeanDefinition httpClientFactoryBeanDefinition = BeanDefinitionBuilder.rootBeanDefinition(HttpClientFactoryBean.class)
+                    BeanDefinition httpClientWrapperBeanDefinition = BeanDefinitionBuilder.rootBeanDefinition(HttpClientFactoryBean.class)
                             .addConstructorArgValue(httpClientClass)
-                            .addConstructorArgValue(baseUrl)
                             .getBeanDefinition();
                     
                     // 注册 BeanDefinition
                     String httpClientBeanName = httpClientClass.getSimpleName();
-                    registry.registerBeanDefinition(httpClientBeanName, httpClientFactoryBeanDefinition);
+                    registry.registerBeanDefinition(httpClientBeanName, httpClientWrapperBeanDefinition);
+                    
+                    log.info("注册HTTP客户端: {}", httpClientClassName);
                 }
+                count += httpClientCandidateComponents.size();
             }
+            log.info("总共注册了 {} 个HTTP客户端", count);
         } catch (ClassNotFoundException e) {
             log.error(e.getMessage(), e);
         }
