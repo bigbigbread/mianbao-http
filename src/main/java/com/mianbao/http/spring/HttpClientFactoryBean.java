@@ -15,7 +15,11 @@ import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.lang.reflect.Proxy;
+import java.net.URI;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class HttpClientFactoryBean<T> implements FactoryBean<T> {
@@ -55,7 +59,8 @@ public class HttpClientFactoryBean<T> implements FactoryBean<T> {
             HttpClient anno = interfaceClass.getAnnotation(HttpClient.class);
             
             // baseHttpUrl
-            this.baseUrl = anno.baseUrl();
+            String baseUrl = anno.baseUrl();
+            this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
             
             // timeoutUnit, timeout
             TimeUnit timeUnit = anno.callTimeoutUnit();
@@ -81,20 +86,24 @@ public class HttpClientFactoryBean<T> implements FactoryBean<T> {
             
             // url
             String subUrl = api.url();
-            UriTemplate uriTemplate = new UriTemplate(baseUrl + subUrl);
+            UriTemplate uriTemplate = new UriTemplate(baseUrl + (subUrl.startsWith("/") ? subUrl : "/" + subUrl));
             
             // parameter
-            RequestBody requestBody = null;
-            Annotation[][] parameterAnnotations = method.getParameterAnnotations();
+            RequestBody reqBody = null;
+            Parameter[] params = method.getParameters();
+            Map<String, Object> pathVarMap = new HashMap<>();
             for (int i = 0; i < args.length; i++) {
-                Annotation[] annotations = parameterAnnotations[i];
-                Object arg = args[i];
-                for (Annotation anno : annotations) {
+                Parameter param = params[i];
+                Annotation[] annos = param.getAnnotations();
+                Object paramVal = args[i];
+                for (Annotation anno : annos) {
                     if (anno instanceof com.mianbao.http.annotation.RequestBody) { // 请求体
-                        byte[] bytes = objectMapper.writeValueAsBytes(arg);
-                        requestBody = RequestBody.create(bytes, MediaType.parse("application/json"));
+                        byte[] bytes = objectMapper.writeValueAsBytes(paramVal);
+                        reqBody = RequestBody.create(bytes, MediaType.parse("application/json"));
                     } else if (anno instanceof PathVariable) { // 路径参数
-                        // todo
+                        PathVariable varAnno = (PathVariable) anno;
+                        String varName = varAnno.value();
+                        pathVarMap.put(varName.isEmpty() ? param.getName() : varName, paramVal);
                     } else if (anno instanceof RequestParam) { // url 参数
                         // todo
                     } else {
@@ -102,20 +111,20 @@ public class HttpClientFactoryBean<T> implements FactoryBean<T> {
                     }
                 }
             }
+            // path variable
+            URI uri = uriTemplate.expand(pathVarMap);
             
             HttpMethod httpMethod = api.method();
             Request request = new Request.Builder()
-                    .url(uriTemplate.toString())
-                    .method(httpMethod.name(), requestBody)
+                    .url(uri.toURL())
+                    .method(httpMethod.name(), reqBody)
                     .build();
             
             // 发请求
             try (Response response = client.newCall(request).execute()) {
                 InputStream in = response.body().byteStream();
                 Class<?> returnTypeClass = method.getReturnType();
-                Object res = objectMapper.readValue(in, returnTypeClass);
-                
-                return res;
+                return objectMapper.readValue(in, returnTypeClass);
             }
         }
     }
